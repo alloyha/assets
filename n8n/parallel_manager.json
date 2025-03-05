@@ -1,0 +1,1315 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Main/Parent Workflow\n* This starts multiple executions of the sub-workflow in parallel and then loops until they all report back.",
+        "height": 1804,
+        "width": 3778
+      },
+      "id": "6706dbd9-86d6-44ba-b803-827288088730",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -800,
+        -260
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "let processes_metadata = $('Next processes to trigger').first().json;\nlet results = $input.first().json.items; \n\nconsole.log(\"Results: \", results);\n\n// Loop through the results array\nresults.forEach(item => {\n  \n  \n  let id = item.id;\n  let result = item.result;\n  let status = item.status;\n\n  // If this result ID is not already in processes_metadata.results, add it\n  if (!processes_metadata.results.some(existingResult => existingResult.id === id)) {\n    processes_metadata.results.push({ id, result, status });\n  }\n});\n\nreturn {\n  json: processes_metadata\n};\n"
+      },
+      "id": "7a6f8459-893a-44b4-96e5-c834e0d82af6",
+      "name": "Update results",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2740,
+        520
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "=POST",
+        "url": "={{ $('Necessary data').item.json.webhook_url }}/webhook/request/graph",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "nodes",
+              "value": "={{ $json.nodes }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a8607384-cc7f-4300-b74a-7d41a1978df4",
+      "name": "Describe nodes into graph(s)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -60,
+        0
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b2c3bf80-5130-4da6-906f-d512a57eac13",
+              "name": "webhook_url",
+              "value": "={{ $('Entrypoint').item.json.webhookUrl.split('/').slice(0, 3).join('/') }}",
+              "type": "string"
+            },
+            {
+              "id": "e16769b3-fa71-4031-ba02-a18901b4be32",
+              "name": "webhook_route",
+              "value": "={{ '/' + $('Entrypoint').item.json.webhookUrl.split('/').slice(4).join('/') }}",
+              "type": "string"
+            },
+            {
+              "id": "525bcf37-0aaf-49a3-a74d-68d3cb7a9874",
+              "name": "nodes",
+              "value": "={{ $input.first().json.body.nodes }}",
+              "type": "array"
+            },
+            {
+              "id": "615cddac-e950-4780-9f6f-e3232a08fdb7",
+              "name": "queue_name",
+              "value": "={{ ['queue', $execution.id].join('_') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -600,
+        -80
+      ],
+      "id": "cbe1f6cf-c2e3-4d7a-b6bf-98f0f6c71f37",
+      "name": "Necessary data"
+    },
+    {
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "request_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "data",
+              "value": "={{ $json.data || {} }}"
+            },
+            {
+              "name": "=nodes",
+              "value": "={{ $json.nodes || {} }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d29fa5d9-a70e-45d9-8737-887e42b1d1b2",
+      "name": "Sub-workflow execution",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -440,
+        1320
+      ],
+      "typeVersion": 4.2,
+      "alwaysOutputData": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3b74ff52-9157-4902-8e51-621911fdc123",
+              "leftValue": "={{ $json.are_valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -220,
+        -80
+      ],
+      "id": "10e28207-8796-4cf0-ac18-23d3028976db",
+      "name": "Has invalid node(s)?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const nodes = $input.first().json.nodes;\n\n// Helper function to validate HTTP/HTTPS URLs using regex\nfunction isValidURL(url) {\n    const pattern = /^(https?:\\/\\/)([\\w.-]+)(:\\d+)?(\\/[^\\s]*)?$/i;\n    return typeof url === \"string\" && pattern.test(url);\n}\n\n// Set to track unique IDs\nconst uniqueIds = new Set();\nconst validMethods = new Set(['GET', 'POST', 'PUT', 'DELETE', 'PATCH']);\n\nlet errors = [];\n\nconst validatedNodes = nodes.map((node, index) => {\n    const { id, method, url, depends_on } = node;\n    let nodeErrors = [];\n\n    // Validate ID\n    if (id == null) {\n        nodeErrors.push(\"Missing or invalid ID\");\n    } else if (uniqueIds.has(id)) {\n        nodeErrors.push(`Duplicate ID found: ${id}`);\n    } else {\n        uniqueIds.add(id);\n    }\n\n    // Validate method\n    if (!method || !validMethods.has(method.toUpperCase())) {\n        nodeErrors.push(\"Invalid or missing HTTP method\");\n    }\n\n    // Validate URL\n    if (!url || typeof url !== 'string') {\n        nodeErrors.push(\"Missing URL\");\n    } else if (!isValidURL(url)) {\n        nodeErrors.push(`Invalid URL: ${url}`);\n    }\n\n    // Ensure `depends_on` is an array\n    if (depends_on !== undefined && !Array.isArray(depends_on)) {\n        nodeErrors.push(\"depends_on must be an array\");\n    }\n\n    // Collect errors for the current node\n    if (nodeErrors.length > 0) {\n        errors.push({ node_id: id ?? `unknown-${index}`, issues: nodeErrors });\n    }\n\n    return {\n        ...node,\n        id: id ?? `auto-${index}`, // Assign automatic ID if missing\n        method,\n        url,\n        depends_on: Array.isArray(depends_on) ? depends_on : []\n    };\n});\n\n// Determine if all nodes are valid\nconst are_valid = errors.length === 0;\n\nreturn {\n    are_valid,\n    nodes: validatedNodes,\n    errors\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -380,
+        -80
+      ],
+      "id": "5a815858-0aad-43d2-a1ad-e276f4cb9f71",
+      "name": "Validate nodes"
+    },
+    {
+      "parameters": {
+        "jsCode": "let error_metadata = $input.first().json;\n\n// Now you can use the JSON string in your workflow expression\nreturn [{\n    json: {\n        errors: error_metadata.errors\n    }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        -100
+      ],
+      "id": "46a47389-668f-4e86-a28a-aff205c2e7a3",
+      "name": "Collect errors"
+    },
+    {
+      "parameters": {
+        "jsCode": "const nodes = $('Has invalid node(s)?').first().json.nodes;\nconst graph_metadata = $input.first().json;\n\n// Augmenting nodes with metadata from graph\nconst augmentedGraphMetadata = {\n    ...graph_metadata, // Keep the original graph_metadata structure\n    graph: graph_metadata.graph.map(gNode => {\n        // Find corresponding node in the 'nodes' array\n        const node = nodes.find(n => n.id === gNode.id);\n        if (node) {\n            return {\n                ...gNode,\n                ...node\n            };\n        }\n        return gNode;\n    })\n};\n\nreturn augmentedGraphMetadata;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        380,
+        340
+      ],
+      "id": "f53b1cdd-f888-48e5-9e6b-f20af8bffee9",
+      "name": "Augment graph nodes"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -660,
+        1320
+      ],
+      "id": "81161fdb-c3bf-4e38-aa03-ebec4302efea",
+      "name": "Execute process node",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Execute process node').item.json.callback_url }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "id",
+              "value": "={{ $('Execute process node').item.json.id }}"
+            },
+            {
+              "name": "result",
+              "value": "={{ $json }}"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.error ? 'unhealthy' : 'healthy' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b7f0dddb-e64f-4f7b-81fc-8cafb7481e36",
+      "name": "Resume parent workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        180,
+        1300
+      ],
+      "retryOnFail": true,
+      "typeVersion": 4.2,
+      "waitBetweenTries": 3000,
+      "notes": "The callback resumes the parent workflow and reports which item finished.  There could be a race condition if the parent workflow was just resumed by a different sub-workflow but hasn't entered a webhook-wait again yet.  The delay and retry mitigates for the possibility that multiple subtasks complete and call back at once."
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "request",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -760,
+        -80
+      ],
+      "id": "d5b8c37d-7a78-4b0f-85a6-4e494ef9a377",
+      "name": "Entrypoint",
+      "webhookId": "afe2f29e-c82c-446a-90c7-262e63ceb188"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1200,
+        -100
+      ],
+      "id": "d32c9d05-a114-40bd-8496-3ac27a9eb320",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const graph_ = $('Build graph').first().json.graph;\nconst groups = $('Build groups').first().json.groups;\n\n// Function to detect cycles in the graph using DFS and track multiple cycles\nconst detect_cycles = (graph) => {\n  const visited = new Set();\n  const inRecursionStack = new Set(); // Track nodes in the current DFS path\n  const allCycles = []; // To store all cycles\n\n  // ✅ Step 1: Check for self-referencing nodes first\n  for (const node in graph) {\n    if (graph[node].dependents.includes(node)) {\n      allCycles.push([node]); // Self-loop detected, only one node in the cycle\n    }\n  }\n\n  // ✅ Step 2: DFS function to traverse the graph and detect all cycles\n  const dfs = (node, path, pathSet) => {\n    if (pathSet.has(node)) {\n      // ✅ Found a cycle, extract it from the path\n      const cycleIndex = path.indexOf(node);\n      allCycles.push([...path.slice(cycleIndex), node]); // Ensure it loops back\n      return;\n    }\n\n    if (visited.has(node)) return;\n\n    visited.add(node);\n    pathSet.add(node);\n    path.push(node);\n\n    if (graph[node] && Array.isArray(graph[node].dependents)) {\n      for (const child of graph[node].dependents) {\n        dfs(child, path, pathSet);\n      }\n    }\n\n    pathSet.delete(node);\n    path.pop();\n  };\n\n  // ✅ Step 3: Check for cycles starting from all unvisited nodes\n  for (const node of Object.keys(graph)) {\n    if (!visited.has(node)) {\n      dfs(node, [], new Set());\n    }\n  }\n\n  return allCycles;\n};\n\n// Function to extract a subgraph (group_graph) based on a group\nconst get_group_graph = (group, graph) => {\n  let groupGraph = {};\n\n  // Create a set for fast lookup\n  const groupSet = new Set(group);\n\n  // Include only nodes that are part of the current group\n  group.forEach(nodeId => {\n    const node = graph.find(n => n.id === nodeId);\n    if (node) {\n      groupGraph[nodeId] = {\n        id: node.id,\n        depends_on: (node.depends_on || []).filter(dep => groupSet.has(dep)),\n        dependents: (node.dependents || []).filter(dep => groupSet.has(dep))\n      };\n    }\n  });\n\n  return groupGraph;\n};\n\n// Detect cycles in each group and return the results\nconst groups_with_cycles = groups.map(group => {\n  const group_graph = get_group_graph(group, graph_);\n  const cycles = detect_cycles(group_graph);\n  \n  return { \n    nodes: group, \n    has_cycles: cycles.length > 0,\n    cycles: cycles // Always an array\n  };\n});\n\n// Return the result with cycle detection for each group\nreturn [{\n  json: {\n    groups: groups_with_cycles\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        960
+      ],
+      "id": "3a6f031a-217f-4ea1-9cae-1ad3fc31fd7c",
+      "name": "Detect cycles",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract nodes safely\nconst nodes = $input.first().json.nodes;\n\n// Create adjacency list representation\nlet graph = {};\n\n// Temporary storage for nodes with unresolved dependencies\nlet deferredNodes = [];\n\n// Build graph and handle dependents in a single pass\nnodes.forEach(node => {\n  // Initialize node with its dependencies and dependents\n  graph[node.id] = {\n    id: node.id,\n    depends_on: node.depends_on || [],\n    dependents: []  // Initialize dependents as empty\n  };\n\n  // Ensure all dependencies are valid and populate dependents if the parent exists\n  node.depends_on.forEach(parent_id => {\n    if (graph[parent_id]) {\n      // If parent exists, add the current node as a dependent\n      graph[parent_id].dependents.push(node.id);\n    } else {\n      // If parent doesn't exist yet, store the current node for later processing\n      deferredNodes.push({ node, parent_id });\n    }\n  });\n});\n\n// Handle deferred nodes after all other nodes are processed\ndeferredNodes.forEach(deferred => {\n  const { node, parent_id } = deferred;\n  // At this point, the parent should be in the graph, so we can safely add it\n  if (graph[parent_id]) {\n    graph[parent_id].dependents.push(node.id);\n  } else {\n    // Optionally handle this case where the parent still doesn't exist (shouldn't happen)\n    console.error(`Error: Parent '${parent_id}' still not found when processing deferred node '${node.id}'`);\n  }\n});\n\n// Ensure the graph is in array format for return\nconst graphArray = Object.values(graph);\n\n// Return the graph in the correct format\nreturn [{ json: { graph: graphArray } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        960
+      ],
+      "id": "c6917b8e-8b73-47f0-91ab-36b58b9a6cbe",
+      "name": "Build graph"
+    },
+    {
+      "parameters": {
+        "jsCode": "let graph_ = $input.first().json.graph;\n\n// Function to find connected components using BFS\nconst findConnectedComponentsBFS = (graph) => {\n  let visited = new Set();\n  let components = [];\n\n  // BFS traversal starting from a given node\n  const bfs = (startNodeId) => {\n    let queue = [startNodeId];\n    let component = [];\n    visited.add(startNodeId);\n\n    while (queue.length > 0) {\n      let nodeId = queue.shift();\n      component.push(nodeId);\n\n      // Find the node by its ID in the graph\n      const node = graph.find(n => n.id === nodeId);\n\n      // Process 'depends_on' nodes (parents)\n      if (node && Array.isArray(node.depends_on)) {\n        node.depends_on.forEach(parent => {\n          if (!visited.has(parent)) {\n            visited.add(parent);\n            queue.push(parent); // Add parent to the queue\n          }\n        });\n      }\n\n      // Process 'dependents' nodes (children)\n      if (node && Array.isArray(node.dependents)) {\n        node.dependents.forEach(child => {\n          if (!visited.has(child)) {\n            visited.add(child);\n            queue.push(child); // Add child to the queue\n          }\n        });\n      }\n    }\n\n    return component;\n  };\n\n  // Iterate through all nodes and perform BFS for each unvisited node\n  graph.forEach(node => {\n    if (!visited.has(node.id)) {\n      let component = bfs(node.id);\n      components.push(component);\n    }\n  });\n\n  return components;\n};\n\n// Get the independent dependency groups (connected components)\nconst dependencyGroups = findConnectedComponentsBFS(graph_);\n\n// Return the result in the correct format\nreturn [{ json: { groups: dependencyGroups } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -20,
+        960
+      ],
+      "id": "4ce8636b-0def-44c7-b357-ab1a55243ef8",
+      "name": "Build groups"
+    },
+    {
+      "parameters": {
+        "jsCode": "let nodes = $input.first().json.body.nodes;\n\n// Ensure requests exist and is an array\nif (!nodes || !Array.isArray(nodes)) {\n  throw new Error(\"Invalid input: 'nodes' must be an array\");\n}\n\n// Aggregate all 'depends_on' IDs in a Set\nlet all_dependencies = new Set();\nnodes.forEach(node => {\n  node.depends_on.forEach(parent_id => {\n    all_dependencies.add(parent_id);\n  });\n});\n\nlet node_ids = new Set();\nnodes.forEach(node => {\n  node_ids.add(node.id);\n});\n\n// Perform the difference check\nlet invalid_dependencies = [...all_dependencies].filter(dep => !node_ids.has(dep));\n\n// Throw an error if there are any invalid dependencies\nif (invalid_dependencies.length > 0) {\n  throw new Error(`Invalid dependencies found: ${invalid_dependencies.join(', ')}`);\n}\n\nreturn [{ json: { nodes: nodes } }]\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        960
+      ],
+      "id": "e7003056-22ff-4dd4-8202-c760859bd27b",
+      "name": "Validate input"
+    },
+    {
+      "parameters": {
+        "content": "## Validation errors\n",
+        "height": 240,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        520,
+        -180
+      ],
+      "typeVersion": 1,
+      "id": "0350991f-6559-4999-8c96-5a33503708b1",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        620,
+        960
+      ],
+      "id": "1874aae9-f111-427a-aabc-35d8176046ea",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 1,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "385c3149-3623-4dd2-9022-770c32f82421",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.results.some(result => result.status === \"unhealthy\")\n }}",
+              "rightValue": "={{ $('Build processes and results').item.json.processes.length }}"
+            },
+            {
+              "id": "edb7a9f2-a573-451d-ac70-1f67be87ca66",
+              "leftValue": "={{ $json.results.length }}",
+              "rightValue": "={{ $json.processes.length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "0ce97044-e13f-429c-bbe2-52805019f742",
+      "name": "Has unhealthy result?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        800,
+        340
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "content": "## Processes listener\n\n",
+        "height": 460,
+        "width": 1020,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1920,
+        220
+      ],
+      "typeVersion": 1,
+      "id": "e2486bcd-298d-46f3-8a1d-37bc7f728d87",
+      "name": "Sticky Note5"
+    },
+    {
+      "parameters": {
+        "content": "## Validate input",
+        "height": 360,
+        "width": 880,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -420,
+        -180
+      ],
+      "typeVersion": 1,
+      "id": "ccb98542-4cfa-4983-a6d9-ea0f92fa5b3e",
+      "name": "Sticky Note6"
+    },
+    {
+      "parameters": {
+        "content": "## Processes setup",
+        "height": 340,
+        "width": 420,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        320,
+        220
+      ],
+      "typeVersion": 1,
+      "id": "a20d3a7f-f57a-4b8d-a7c4-c385ec04ead0",
+      "name": "Sticky Note7"
+    },
+    {
+      "parameters": {
+        "jsCode": "let next_processes = $input.first().json.next_processes; \n\nlet item;\nlet items = [];  // Initialize the array to hold new items\n\n// Loop over next_processes and transform each item\nfor (let i = 0; i < next_processes.length; i++) {\n  item={\n    pairedItem: i,\n    json: next_processes[i]\n  };\n  items.push(item);\n}\n\nconsole.log(\"Items: \", items)\n\nreturn items;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        440
+      ],
+      "id": "b30adfc3-42de-40ed-8831-b728e42cf355",
+      "name": "Unwrap current processes"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.first().json.results;\nlet processes = $input.first().json.processes;\n\n// Step 1: Extract result IDs and status mapping\nconst result_ids = new Set(results.map(result => result.id));\nconst status_map = results.reduce((acc, item) => {\n    acc[item.id] = item.status;\n    return acc;\n}, {});\n\n// Step 2: Filter out processes already in results or triggered\nlet filtered_processes = processes.filter(\n    process => !result_ids.has(process.id) && !process.triggered\n);\n\n// Step 3: Determine the next processes that can be triggered\nlet next_processes = filtered_processes.filter(process => {\n    let dependencies = process.depends_on || []; // Ensure it's an array\n\n    if (dependencies.length === 0) {\n        return true;\n    }\n\n    // Check if ALL dependencies exist in results & are \"healthy\"\n    let dependencies_met = dependencies.every(dep_id => \n        result_ids.has(dep_id) && status_map[dep_id] === \"healthy\"\n    );\n\n    return dependencies_met;\n});\n\n// Step 4: Mark selected processes as triggered\nprocesses = processes.map(process => ({\n    ...process,\n    triggered: next_processes.some(p => p.id === process.id) || process.triggered\n}));\n\nnext_processes = next_processes.map(process => ({\n    ...process,\n    triggered: true\n}));\n\nreturn {\n  json: { processes, next_processes, results }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        320
+      ],
+      "id": "8508947d-2fc3-4b4d-bde6-9ad7eff5c6c0",
+      "name": "Next processes to trigger"
+    },
+    {
+      "parameters": {
+        "content": "## Subworkflow \"Nodes into Graphs\" \n\nThis workflow converts nodes into graphs. ",
+        "height": 300,
+        "width": 1560,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -740,
+        840
+      ],
+      "typeVersion": 1,
+      "id": "e02467d2-e686-45c3-bd22-261db8097816",
+      "name": "Sticky Note8"
+    },
+    {
+      "parameters": {
+        "content": "## Processes triggerer\n\n",
+        "height": 460,
+        "width": 940,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        960,
+        220
+      ],
+      "typeVersion": 1,
+      "id": "1c81b035-c715-4a04-b0d0-9fd3358afd6f",
+      "name": "Sticky Note9"
+    },
+    {
+      "parameters": {
+        "content": "## Sub-workflow \"HTTP requests calls back parent workflow\"\"\n\nThis subworkflow trigger calls back the parent workflow to allow request management.",
+        "height": 300,
+        "width": 720,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -740,
+        1200
+      ],
+      "typeVersion": 1,
+      "id": "45ed1d1f-1cc6-4581-a4b9-aeb3e6624bd6",
+      "name": "Sticky Note10"
+    },
+    {
+      "parameters": {
+        "content": "",
+        "height": 520,
+        "width": 2660,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        300,
+        200
+      ],
+      "typeVersion": 1,
+      "id": "b4ca7263-b9b3-46c7-b312-3a82fce895ae",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 1,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "385c3149-3623-4dd2-9022-770c32f82421",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ !!$json.groups.some(group => group.cycles && group.cycles.length > 0) }}",
+              "rightValue": "=true"
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "43df24d4-a325-4875-8232-c7f6008827be",
+      "name": "Has cycles?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        100,
+        0
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  json: {\n    results: $input.first().json.results,\n  },\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        40
+      ],
+      "id": "7bf51c03-d9c5-46fb-99be-188d175011e3",
+      "name": "Get results"
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhook_url = $('Necessary data').first().json.webhook_url;\nconst webhook_route = $('Necessary data').first().json.webhook_route;\nconst webhook_uri = `${webhook_url}/webhook${webhook_route}`;\nconst queue_name = $('Necessary data').first().json.queue_name;\n\nconst input = $input.first().json;\n\n// Step 1: Extract full node data for a given group\nfunction get_group_nodes(group) {\n    return group.nodes.map(node_id => {\n        const node_data = input.graph.find(n => n.id === node_id);\n        return {\n            ...node_data, // Spread node properties\n            triggered: false, // Add a triggered flag\n        };\n    });\n}\n\n// Step 2: Format requests based on group count\nlet processes;\nconst callback_url = $execution.resumeUrl;\n\nif (input.groups.length > 1) {  \n    // Multiple groups: Wrap each group in an object\n    processes = input.groups.map((group, index) => {\n        const nodes_data = get_group_nodes(group);\n        const process_id = `group_${index+1}`;\n      \n        return {\n            id: process_id,\n            url: webhook_uri,\n            method: \"POST\",\n            nodes: nodes_data,\n            queue_name: queue_name,\n            depends_on: [],\n            triggered: false, // Add a triggered flag\n        };\n    });\n} else {\n    // Single group: Expand directly into processes\n    const single_group_nodes = get_group_nodes(input.groups[0]);\n    \n  \n    processes = single_group_nodes.map(node => {\n        return {\n            ...node,\n            queue_name: queue_name,\n            triggered: false, // Add a triggered flag\n        };\n    });\n}\n\nreturn {\n  json: {\n    processes: processes,\n    results: [],\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        580,
+        340
+      ],
+      "id": "e92293f3-f891-4ee1-bb6b-f953bf073d40",
+      "name": "Build processes and results"
+    },
+    {
+      "parameters": {
+        "jsCode": "let graph = $('Build graph').first().json.graph;\nlet groups = $('Detect cycles').first().json.groups;\n\n\n// Topological Sort Function\nconst topological_sort = (group, graph) => {\n  if (!Array.isArray(group)) {\n    console.error('Expected an array for group, but got:', typeof group);\n    return null;  // Return null if group is not an array\n  }\n\n  let inDegree = {};  // Track incoming edges for each node\n  let queue = [];  // Queue to hold nodes with no incoming edges\n  let sorted = [];  // Array to store the topologically sorted nodes\n\n  // Initialize in-degree for each node in the group\n  group.forEach(node => {\n    const nodeData = graph.find(n => n.id === node);\n    if (nodeData && Array.isArray(nodeData.depends_on)) {\n      inDegree[node] = nodeData.depends_on.length;\n    } else {\n      inDegree[node] = 0;  // No dependencies, so no incoming edges\n    }\n\n    if (inDegree[node] === 0) queue.push(node);  // If in-degree is 0, add to the queue\n  });\n\n  while (queue.length > 0) {\n    let node = queue.shift();  // Get node from the front of the queue\n    sorted.push(node);  // Add to the sorted order\n\n    const nodeData = graph.find(n => n.id === node);\n    if (nodeData && Array.isArray(nodeData.dependents)) {\n      nodeData.dependents.forEach(child => {\n        inDegree[child]--;  // Reduce in-degree of the dependent node\n        if (inDegree[child] === 0) queue.push(child);  // Add to queue if in-degree becomes 0\n      });\n    }\n  }\n\n  // If the sorted array does not contain all nodes, it means there was a cycle\n  if (sorted.length !== group.length) {\n    return null;  // Return null if there's a cycle\n  }\n\n  return sorted;\n};\n\n// Apply sorting per group and skip groups with cycles\nconst sortedGroups = groups.map(group => {\n  const sorted = topological_sort(group, graph);\n  return sorted ? sorted : group;  // Return sorted nodes or original group if there's a cycle\n});\n\n// Return the result with sorted groups\nreturn [{\n  json: {\n    graph: graph,\n    groups: sortedGroups\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        960
+      ],
+      "id": "e310dbe7-94b0-47a3-83c8-529b01b8e643",
+      "name": "Sort topologically"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "={{ $workflow.id }}",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1740,
+        480
+      ],
+      "id": "25a97cf5-5969-4541-9c7e-325e8da87f57",
+      "name": "Execute process task",
+      "retryOnFail": true,
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        280
+      ],
+      "id": "069d7336-4e5e-4269-9394-3c24bdc611c8",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "jsCode": "const groups = $input.first().json.groups;\n\n// Function to describe errors based on detected cycles and group messages by group\nconst describeErrors = (groups) => {\n    const errors = {};\n\n    groups.forEach(group => {\n        if (group.has_cycles) {\n            group.cycles.forEach(cycle => {\n                // Determine the cycle message\n                const cyclePath = cycle.join(\" → \");\n                const message = new Set(cycle).size === 1\n                    ? `Self-loop detected on node: ${cycle[0]}`\n                    : `Cycle detected among nodes: ${cyclePath}`;\n\n                // Group errors by group of nodes\n                const groupKey = JSON.stringify(group.nodes);\n                if (!errors[groupKey]) {\n                    errors[groupKey] = { group: group.nodes, messages: [] };\n                }\n                errors[groupKey].messages.push(message);\n            });\n        }\n    });\n\n    // Convert the grouped errors object into an array\n    return { errors: Object.values(errors) };\n};\n\n// Generate error report based on the detected cycles\nconst errorReport = describeErrors(groups);\n\n// Return the result with grouped errors\nreturn [{\n    json: {\n        errors: errorReport.errors\n    }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        -20
+      ],
+      "id": "c7289ec1-4582-4e83-a5f6-187a57a39f16",
+      "name": "Build graph errors"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "237c5879-d2f7-4c9f-bc02-160689bec635",
+              "leftValue": "={{ $json.next_processes.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1240,
+        320
+      ],
+      "id": "86e988b9-93cf-4120-9eda-df69e5b245bc",
+      "name": "Has processes to trigger?"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "request/graph",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -680,
+        960
+      ],
+      "id": "2792e4b9-d846-447b-b0e7-ac44884362b0",
+      "name": "POST endpoint - Build graph",
+      "webhookId": "067b0edd-c7c2-4808-a9ca-4dcb1b6f2425"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('Execute process node').item.json.queue_name }}",
+        "messageData": "={\n  \"id\": {{ $('Execute process node').item.json.id }},\n  \"result\": {{ JSON.stringify($json) }},\n  \"status\": \"{{ $json.error ? 'unhealthy' : 'healthy' }}\"\n}\n"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        1320
+      ],
+      "id": "e8b49f3d-51dc-4c7c-b6af-33f185e349f2",
+      "name": "Redis",
+      "credentials": {
+        "redis": {
+          "id": "9UW4OleCgF2CzxLg",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "id": "a0da7005-24f3-4b6e-a2af-247772558546",
+      "name": "Wait 1s to check results",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        2000,
+        320
+      ],
+      "webhookId": "5cd058b4-48c8-449a-9c09-959a5b8a2b48",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "operation": "pop",
+        "list": "={{ $('Necessary data').item.json.queue_name }}",
+        "propertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2580,
+        320
+      ],
+      "id": "5899a1ba-ca6e-49d7-86e8-90472d21f4d6",
+      "name": "Retrieve results",
+      "credentials": {
+        "redis": {
+          "id": "9UW4OleCgF2CzxLg",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the existing items array\nlet items = $('Has queue items?').first().json.items || [];\n\n// Get the new item\nlet item = $input.first().json.data;\n\n// Check if item is not null or undefined\nif (item !== null) {\n  items.push(item);\n}\n\nreturn {\n  json: {\n    items,\n    data: item\n  }    \n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2740,
+        320
+      ],
+      "id": "af443f97-741f-47c6-bfc8-a2b600dd756d",
+      "name": "Update items"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "826a6087-6461-42e3-9ff0-96dd6d03250e",
+              "leftValue": "={{ $json.data }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        320
+      ],
+      "id": "e59d335b-848c-4992-8b35-641361218933",
+      "name": "Has queue items?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "effae367-9aa0-4c6b-ad52-46b50b9dd1d8",
+              "name": "items",
+              "value": "[]",
+              "type": "array"
+            },
+            {
+              "id": "2994cb33-54e3-43a2-9bf2-22a300a6b4d0",
+              "name": "data",
+              "value": "{}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2200,
+        320
+      ],
+      "id": "13829042-6942-427a-8881-a64c5af7890d",
+      "name": "Start items fields"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "effae367-9aa0-4c6b-ad52-46b50b9dd1d8",
+              "name": "items",
+              "value": "={{ $json.items }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2580,
+        520
+      ],
+      "id": "c00869f8-caca-4d1d-bc54-3ccad4e553b8",
+      "name": "Get items"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1600,
+        440
+      ],
+      "id": "74d3fcba-e51d-4b60-97f1-0a1e623dead7",
+      "name": "Loop Over Items"
+    }
+  ],
+  "connections": {
+    "Update results": {
+      "main": [
+        [
+          {
+            "node": "Has unhealthy result?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Describe nodes into graph(s)": {
+      "main": [
+        [
+          {
+            "node": "Has cycles?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Necessary data": {
+      "main": [
+        [
+          {
+            "node": "Validate nodes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sub-workflow execution": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Has invalid node(s)?": {
+      "main": [
+        [
+          {
+            "node": "Collect errors",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Describe nodes into graph(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate nodes": {
+      "main": [
+        [
+          {
+            "node": "Has invalid node(s)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect errors": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Augment graph nodes": {
+      "main": [
+        [
+          {
+            "node": "Build processes and results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute process node": {
+      "main": [
+        [
+          {
+            "node": "Sub-workflow execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entrypoint": {
+      "main": [
+        [
+          {
+            "node": "Necessary data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect cycles": {
+      "main": [
+        [
+          {
+            "node": "Sort topologically",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build graph": {
+      "main": [
+        [
+          {
+            "node": "Build groups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build groups": {
+      "main": [
+        [
+          {
+            "node": "Detect cycles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate input": {
+      "main": [
+        [
+          {
+            "node": "Build graph",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has unhealthy result?": {
+      "main": [
+        [
+          {
+            "node": "Get results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Next processes to trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unwrap current processes": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Next processes to trigger": {
+      "main": [
+        [
+          {
+            "node": "Has processes to trigger?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has cycles?": {
+      "main": [
+        [
+          {
+            "node": "Build graph errors",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Augment graph nodes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get results": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build processes and results": {
+      "main": [
+        [
+          {
+            "node": "Has unhealthy result?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort topologically": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute process task": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Operation, do nothing": {
+      "main": [
+        [
+          {
+            "node": "Wait 1s to check results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build graph errors": {
+      "main": [
+        [
+          {
+            "node": "Collect errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has processes to trigger?": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unwrap current processes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST endpoint - Build graph": {
+      "main": [
+        [
+          {
+            "node": "Validate input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 1s to check results": {
+      "main": [
+        [
+          {
+            "node": "Start items fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve results": {
+      "main": [
+        [
+          {
+            "node": "Update items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update items": {
+      "main": [
+        [
+          {
+            "node": "Has queue items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has queue items?": {
+      "main": [
+        [
+          {
+            "node": "Retrieve results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start items fields": {
+      "main": [
+        [
+          {
+            "node": "Has queue items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get items": {
+      "main": [
+        [
+          {
+            "node": "Update results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Wait 1s to check results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute process task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2e4f8121945025cdf9238c79aefe23511c144e8abb0729066dfb54ab1f405578"
+  }
+}
