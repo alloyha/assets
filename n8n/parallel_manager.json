@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let processes_metadata = $('Next processes to trigger').first().json;\nlet results = $input.first().json.items; \n\nconsole.log(\"Results: \", results);\n\n// Loop through the results array\nresults.forEach(item => {\n  \n  \n  let id = item.id;\n  let result = item.result;\n  let status = item.status;\n\n  // If this result ID is not already in processes_metadata.results, add it\n  if (!processes_metadata.results.some(existingResult => existingResult.id === id)) {\n    processes_metadata.results.push({ id, result, status });\n  }\n});\n\nreturn {\n  json: processes_metadata\n};\n"
+        "jsCode": "let processes_metadata = $('Next processes to trigger').first().json;\nlet results = $input.first().json.items; \n\nconsole.log(\"Results: \", results);\n\n// Loop through the results array\nresults.forEach(item => {\n  let id = item.id;\n  let triggered_at = item.triggered_at;\n  let created_at = item.created_at;\n  let result = item.result;\n  let status = item.status;\n\n  // If this result ID is not already in processes_metadata.results, add it\n  if (!processes_metadata.results.some(existingResult => existingResult.id === id)) {\n    processes_metadata.results.push({ id, triggered_at, created_at, status, result });\n  }\n});\n\nreturn {\n  json: processes_metadata\n};\n"
       },
       "id": "7a6f8459-893a-44b4-96e5-c834e0d82af6",
       "name": "Update results",
@@ -127,7 +127,7 @@
       "name": "Sub-workflow execution",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
-        -440,
+        -280,
         1320
       ],
       "typeVersion": 4.2,
@@ -220,41 +220,6 @@
       "id": "81161fdb-c3bf-4e38-aa03-ebec4302efea",
       "name": "Execute process node",
       "notesInFlow": false
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $('Execute process node').item.json.callback_url }}",
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "id",
-              "value": "={{ $('Execute process node').item.json.id }}"
-            },
-            {
-              "name": "result",
-              "value": "={{ $json }}"
-            },
-            {
-              "name": "status",
-              "value": "={{ $json.error ? 'unhealthy' : 'healthy' }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "b7f0dddb-e64f-4f7b-81fc-8cafb7481e36",
-      "name": "Resume parent workflow",
-      "type": "n8n-nodes-base.httpRequest",
-      "position": [
-        180,
-        1300
-      ],
-      "retryOnFail": true,
-      "typeVersion": 4.2,
-      "waitBetweenTries": 3000,
-      "notes": "The callback resumes the parent workflow and reports which item finished.  There could be a race condition if the parent workflow was just resumed by a different sub-workflow but hasn't entered a webhook-wait again yet.  The delay and retry mitigates for the possibility that multiple subtasks complete and call back at once."
     },
     {
       "parameters": {
@@ -369,49 +334,6 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "version": 1,
-            "leftValue": "",
-            "caseSensitive": true,
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "385c3149-3623-4dd2-9022-770c32f82421",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              },
-              "leftValue": "={{ $json.results.some(result => result.status === \"unhealthy\")\n }}",
-              "rightValue": "={{ $('Build processes and results').item.json.processes.length }}"
-            },
-            {
-              "id": "edb7a9f2-a573-451d-ac70-1f67be87ca66",
-              "leftValue": "={{ $json.results.length }}",
-              "rightValue": "={{ $json.processes.length }}",
-              "operator": {
-                "type": "number",
-                "operation": "gte"
-              }
-            }
-          ],
-          "combinator": "or"
-        },
-        "options": {}
-      },
-      "id": "0ce97044-e13f-429c-bbe2-52805019f742",
-      "name": "Has unhealthy result?",
-      "type": "n8n-nodes-base.if",
-      "position": [
-        800,
-        340
-      ],
-      "typeVersion": 2
-    },
-    {
-      "parameters": {
         "content": "## Processes listener\n\n",
         "height": 460,
         "width": 1020,
@@ -465,7 +387,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1400,
+        1460,
         440
       ],
       "id": "b30adfc3-42de-40ed-8831-b728e42cf355",
@@ -478,8 +400,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1040,
-        320
+        1060,
+        360
       ],
       "id": "8508947d-2fc3-4b4d-bde6-9ad7eff5c6c0",
       "name": "Next processes to trigger"
@@ -520,7 +442,7 @@
       "parameters": {
         "content": "## Sub-workflow \"HTTP requests calls back parent workflow\"\"\n\nThis subworkflow trigger calls back the parent workflow to allow request management.",
         "height": 300,
-        "width": 720,
+        "width": 1060,
         "color": 5
       },
       "type": "n8n-nodes-base.stickyNote",
@@ -622,44 +544,11 @@
       "name": "Sort topologically"
     },
     {
-      "parameters": {
-        "workflowId": {
-          "__rl": true,
-          "value": "={{ $workflow.id }}",
-          "mode": "id"
-        },
-        "workflowInputs": {
-          "mappingMode": "defineBelow",
-          "value": {},
-          "matchingColumns": [],
-          "schema": [],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": true
-        },
-        "mode": "each",
-        "options": {
-          "waitForSubWorkflow": false
-        }
-      },
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1.2,
-      "position": [
-        1740,
-        480
-      ],
-      "id": "25a97cf5-5969-4541-9c7e-325e8da87f57",
-      "name": "Execute process task",
-      "retryOnFail": true,
-      "executeOnce": true,
-      "alwaysOutputData": true,
-      "onError": "continueRegularOutput"
-    },
-    {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1600,
+        1560,
         280
       ],
       "id": "069d7336-4e5e-4269-9394-3c24bdc611c8",
@@ -706,7 +595,7 @@
       "typeVersion": 2.2,
       "position": [
         1240,
-        320
+        360
       ],
       "id": "86e988b9-93cf-4120-9eda-df69e5b245bc",
       "name": "Has processes to trigger?"
@@ -732,12 +621,12 @@
       "parameters": {
         "operation": "push",
         "list": "={{ $('Execute process node').item.json.queue_name }}",
-        "messageData": "={\n  \"id\": {{ $('Execute process node').item.json.id }},\n  \"result\": {{ JSON.stringify($json) }},\n  \"status\": \"{{ $json.error ? 'unhealthy' : 'healthy' }}\"\n}\n"
+        "messageData": "={\n  \"id\": {{ $('Execute process node').item.json.id }},\n  \"triggered_at\": \"{{ $('Code1').item.json.triggered_at }}\",\n  \"created_at\": \"{{$now.toString()}}\",\n  \"result\": {{ JSON.stringify($json) }},\n  \"status\": \"{{ $json.error ? 'unhealthy' : 'healthy' }}\"\n}\n"
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        -220,
+        -80,
         1320
       ],
       "id": "e8b49f3d-51dc-4c7c-b6af-33f185e349f2",
@@ -751,7 +640,7 @@
     },
     {
       "parameters": {
-        "amount": 1
+        "amount": 0.1
       },
       "id": "a0da7005-24f3-4b6e-a2af-247772558546",
       "name": "Wait 1s to check results",
@@ -766,7 +655,7 @@
     {
       "parameters": {
         "operation": "pop",
-        "list": "={{ $('Necessary data').item.json.queue_name }}",
+        "list": "={{ $('Necessary data').first().json.queue_name  }}",
         "propertyName": "data",
         "options": {}
       },
@@ -840,35 +729,6 @@
             {
               "id": "effae367-9aa0-4c6b-ad52-46b50b9dd1d8",
               "name": "items",
-              "value": "[]",
-              "type": "array"
-            },
-            {
-              "id": "2994cb33-54e3-43a2-9bf2-22a300a6b4d0",
-              "name": "data",
-              "value": "{}",
-              "type": "object"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        2200,
-        320
-      ],
-      "id": "13829042-6942-427a-8881-a64c5af7890d",
-      "name": "Start items fields"
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "effae367-9aa0-4c6b-ad52-46b50b9dd1d8",
-              "name": "items",
               "value": "={{ $json.items }}",
               "type": "array"
             }
@@ -887,16 +747,101 @@
     },
     {
       "parameters": {
-        "options": {}
+        "workflowId": {
+          "__rl": true,
+          "value": "={{ $workflow.id }}",
+          "mode": "id"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        }
       },
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
       "position": [
-        1600,
+        1740,
         440
       ],
-      "id": "74d3fcba-e51d-4b60-97f1-0a1e623dead7",
-      "name": "Loop Over Items"
+      "id": "e12b4ed4-09a5-418e-9196-0fa973238639",
+      "name": "Execute Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  json: {\n    items: [],\n    data: {}\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        320
+      ],
+      "id": "95922695-3ca0-49f0-af7a-44299b474f92",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7230b151-8c25-4ceb-8e98-11aa1e51612b",
+              "leftValue": "={{ $json.results.some(result => result.status === \"unhealthy\")\n }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "f751b342-898e-48d6-ad37-ffffb6b33e23",
+              "leftValue": "={{ $json.results.length }}",
+              "rightValue": "={{ $json.processes.length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        340
+      ],
+      "id": "8165da7c-2038-42d4-9ea1-012cc7c3d5f1",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "let process_info = $input.first().json;\n\nreturn {\n  json: {\n    ...process_info,\n    triggered_at: $now.toString(),\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        1320
+      ],
+      "id": "7bbc3384-fdcf-4665-beba-47482ef95342",
+      "name": "Code1"
     }
   ],
   "connections": {
@@ -904,7 +849,7 @@
       "main": [
         [
           {
-            "node": "Has unhealthy result?",
+            "node": "If",
             "type": "main",
             "index": 0
           }
@@ -1000,7 +945,7 @@
       "main": [
         [
           {
-            "node": "Sub-workflow execution",
+            "node": "Code1",
             "type": "main",
             "index": 0
           }
@@ -1062,29 +1007,11 @@
         ]
       ]
     },
-    "Has unhealthy result?": {
-      "main": [
-        [
-          {
-            "node": "Get results",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Next processes to trigger",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Unwrap current processes": {
       "main": [
         [
           {
-            "node": "Loop Over Items",
+            "node": "Execute Workflow",
             "type": "main",
             "index": 0
           }
@@ -1135,7 +1062,7 @@
       "main": [
         [
           {
-            "node": "Has unhealthy result?",
+            "node": "If",
             "type": "main",
             "index": 0
           }
@@ -1147,17 +1074,6 @@
         [
           {
             "node": "Respond to Webhook1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Execute process task": {
-      "main": [
-        [
-          {
-            "node": "Loop Over Items",
             "type": "main",
             "index": 0
           }
@@ -1215,11 +1131,16 @@
         ]
       ]
     },
+    "Redis": {
+      "main": [
+        []
+      ]
+    },
     "Wait 1s to check results": {
       "main": [
         [
           {
-            "node": "Start items fields",
+            "node": "Code",
             "type": "main",
             "index": 0
           }
@@ -1266,17 +1187,6 @@
         ]
       ]
     },
-    "Start items fields": {
-      "main": [
-        [
-          {
-            "node": "Has queue items?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Get items": {
       "main": [
         [
@@ -1288,7 +1198,7 @@
         ]
       ]
     },
-    "Loop Over Items": {
+    "Execute Workflow": {
       "main": [
         [
           {
@@ -1296,10 +1206,43 @@
             "type": "main",
             "index": 0
           }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Has queue items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Get results",
+            "type": "main",
+            "index": 0
+          }
         ],
         [
           {
-            "node": "Execute process task",
+            "node": "Next processes to trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Sub-workflow execution",
             "type": "main",
             "index": 0
           }
