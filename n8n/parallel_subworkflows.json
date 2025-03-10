@@ -1,0 +1,204 @@
+{
+    "nodes": [
+      {
+        "parameters": {
+          "content": "## Subworkflows",
+          "height": 464,
+          "width": 738
+        },
+        "id": "4a36fc79-644c-429e-8513-0e61f501d98f",
+        "name": "Sticky Note4",
+        "type": "n8n-nodes-base.stickyNote",
+        "position": [
+          -100,
+          -140
+        ],
+        "typeVersion": 1
+      },
+      {
+        "parameters": {
+          "path": "get-subworkflow",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -40,
+          -60
+        ],
+        "id": "54749a8f-9b48-4dd6-8587-a35c9d924f8c",
+        "name": "Webhook - GET",
+        "webhookId": "afe2f29e-c82c-446a-90c7-262e63ceb188"
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          440,
+          -60
+        ],
+        "id": "aaf0a8fb-2657-4c51-be15-c40dc70d0b84",
+        "name": "Respond to GET Webhook"
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          440,
+          140
+        ],
+        "id": "748539ee-f52d-4fea-9440-246b16517643",
+        "name": "Respond to POST Webhook"
+      },
+      {
+        "parameters": {
+          "jsCode": "let data = $input.first().json.body.data;  // Assuming 'data' is an object with numerical values\n\n// Check if 'data' is an object and not null\nif (typeof data !== 'object' || data === null) {\n  throw new Error(\"Expected 'data' to be an object.\");\n}\n\nlet result = {};\n\n// Loop over each property in the object\nfor (const key in data) {\n  if (data.hasOwnProperty(key)) {\n    // Check if the value is a number and square it\n    if (typeof data[key] === 'number') {\n      result[key] = data[key] * data[key];\n    } else {\n      result[key] = null;  // Handle cases where the value is not a number\n    }\n  }\n}\n\nreturn [{ json: result }];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          120,
+          140
+        ],
+        "id": "febac49c-7b96-4ab5-aaa8-4b2a98d5cf39",
+        "name": "Transform data"
+      },
+      {
+        "parameters": {
+          "jsCode": "let result = {'key': 42};\n\nreturn [{ json: result }];  // Returning the result array inside a json object\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          120,
+          -60
+        ],
+        "id": "6223ad9c-533b-4570-8530-0a0eb346d1f6",
+        "name": "Extract data"
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "post-subworkflow",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -40,
+          140
+        ],
+        "id": "55a46e93-df5c-44e0-93c7-118380beea8f",
+        "name": "Webhook - POST",
+        "webhookId": "afe2f29e-c82c-446a-90c7-262e63ceb188"
+      },
+      {
+        "parameters": {
+          "amount": 1
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          280,
+          -60
+        ],
+        "id": "7f73e94c-5794-4518-a978-a3fe8ae0110a",
+        "name": "Wait 1s",
+        "webhookId": "d70d89ea-e9f6-465d-b398-673e14a44a5d"
+      },
+      {
+        "parameters": {
+          "amount": 1
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          280,
+          140
+        ],
+        "id": "cc28b861-c0a3-4b77-a4b9-ee094b281202",
+        "name": "Wait 1s1",
+        "webhookId": "d70d89ea-e9f6-465d-b398-673e14a44a5d"
+      }
+    ],
+    "connections": {
+      "Webhook - GET": {
+        "main": [
+          [
+            {
+              "node": "Extract data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Transform data": {
+        "main": [
+          [
+            {
+              "node": "Wait 1s1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract data": {
+        "main": [
+          [
+            {
+              "node": "Wait 1s",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook - POST": {
+        "main": [
+          [
+            {
+              "node": "Transform data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait 1s": {
+        "main": [
+          [
+            {
+              "node": "Respond to GET Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait 1s1": {
+        "main": [
+          [
+            {
+              "node": "Respond to POST Webhook",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "pinData": {},
+    "meta": {
+      "instanceId": "2e4f8121945025cdf9238c79aefe23511c144e8abb0729066dfb54ab1f405578"
+    }
+  }
