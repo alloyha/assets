@@ -31,5 +31,4 @@ EOF
 # Execute the request
 response="$(time curl -X POST "$parallel_manager_url" -H "$headers" -d "$data")"
 
-echo "$response" | jq -r '.results[] | "ID: \(.id) -> Decoded: \(.result | @base64d)"'
-
+echo "$response" | jq '.results |= map(.result = (.result | @base64d | fromjson))'
