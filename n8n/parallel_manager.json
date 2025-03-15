@@ -150,7 +150,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1420,
+        1440,
         180
       ],
       "id": "bcd1e251-0199-4a54-87cd-8bc1d94686bb",
@@ -425,19 +425,6 @@
     },
     {
       "parameters": {
-        "jsCode": "return {\n  json: {\n    results: $input.first().json.results,\n  },\n};\n"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1440,
-        540
-      ],
-      "id": "23c99cd4-2d5b-4f36-9bca-6042de56f821",
-      "name": "Get results"
-    },
-    {
-      "parameters": {
         "jsCode": "const webhook_url = $('Necessary data').first().json.webhook_url;\nconst webhook_route = $('Necessary data').first().json.webhook_route;\nconst webhook_uri = `${webhook_url}/webhook${webhook_route}`;\nconst queue_name = $('Necessary data').first().json.queue_name;\n\nconst graph = $input.first().json.graph;\nconst groups = $input.first().json.groups;\n\nfunction random_str(length = 10) {\n    if (typeof length !== 'number' || length <= 0) {\n        throw new Error(\"Length must be a positive integer.\");\n    }\n\n    // Generate a random string with the specified length\n    return Math.random().toString(36).substring(2, 2 + length).padEnd(length, '0');\n}\n\nfunction augment_node(node_id) {\n    const node_data = graph.find(node => String(node.id) === String(node_id));\n    return {\n        ...node_data,\n        triggered: false,\n        queue_name: queue_name,\n    };\n}\n\n// Step 1: Extract full node data for a given group\nfunction get_group_nodes(group) {    \n    return group.nodes.map(augment_node);\n}\n\nfunction cast_group_to_process(group) {\n    let process;\n    \n    const nodes_data = get_group_nodes(group);\n\n    if (nodes_data.length === 1) {\n        // Single-node group → Treat it as a standalone process\n        process = {\n            ...nodes_data[0]\n        };\n    } else {\n        // Multi-node group → Wrap in a process object\n        process = {\n            id: `group_${random_str()}`,\n            url: webhook_uri,\n            method: \"POST\",\n            nodes: nodes_data,\n            queue_name: queue_name,\n            depends_on: [],\n            triggered: false,\n        };\n    }\n\n    return process;\n}\n\nfunction cast_groups_to_processes(groups) {\n    let processes = [];\n    \n    if (groups.length === 1) {\n        const group = groups[0];\n        processes = get_group_nodes(group);  // For single group, directly extract nodes\n    } else {\n        processes = groups.map(cast_group_to_process);  \n    }\n\n    return processes; // Return the processes array\n}\n\nreturn {\n    json: {\n        processes: cast_groups_to_processes(groups),\n        results: [],\n    }\n};\n"
       },
       "type": "n8n-nodes-base.code",
@@ -521,7 +508,7 @@
     },
     {
       "parameters": {
-        "amount": 1
+        "amount": 0.1
       },
       "id": "f170b789-f57e-4818-8bb8-435dc66d08b2",
       "name": "Wait 1s to check results",
@@ -781,19 +768,6 @@
     },
     {
       "parameters": {
-        "jsCode": "let started_at = $('Necessary data').first()?.json?.started_at ?? null;\nlet finished_at = new Date().toISOString();\nlet results = [];\nlet errors = [];\n\ntry {\n  // Retrieve the results\n  const rawResults = $('Get results').first()?.json?.results ?? [];\n\n  rawResults.forEach(node => {\n    if (/^group_[a-zA-Z0-9]+$/.test(node.id) && typeof node.result === 'string') {\n      // Decode Base64 if it's a group\n      try {\n        node.result = JSON.parse(Buffer.from(node.result, 'base64').toString('utf-8'));\n\n        console.log(node.result);\n\n        // If the result is a group, introspect and get the results array\n        if (Array.isArray(node.result?.results)) {\n          // Start a new array instead of appending\n          results.push(...node.result.results);\n        }\n      } catch (decodeError) {\n        console.error(`Failed to decode Base64 for group ${node.id}:`, decodeError);\n      }\n    } else {\n      // For non-group nodes, add them directly to the results array\n      results.push(node);\n    }\n  });\n} catch (e) {\n  console.error(\"Error processing results:\", e);\n}\n\ntry {\n  // Retrieve any errors\n  errors = $('Collect errors').first()?.json?.errors ?? [];\n} catch (e) {\n  console.error(\"Error processing errors:\", e);\n}\n\nreturn {\n  json: {\n    started_at,\n    finished_at,\n    results,\n    errors\n  }\n};\n"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1700,
-        320
-      ],
-      "id": "4ff84764-6d62-4a2d-9884-20228d75b436",
-      "name": "Code"
-    },
-    {
-      "parameters": {
         "jsCode": "let process_info = $input.first().json;\n\nreturn {\n  json: {\n    ...process_info,\n    started_at: new Date().toISOString(),\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
@@ -825,6 +799,32 @@
           "name": "Redis account"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  json: {\n    results: $input.first().json.results,\n  },\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        540
+      ],
+      "id": "23c99cd4-2d5b-4f36-9bca-6042de56f821",
+      "name": "Collect results"
+    },
+    {
+      "parameters": {
+        "jsCode": "let started_at = $('Necessary data').first()?.json?.started_at ?? null;\nlet finished_at = new Date().toISOString();\nlet results = [];\nlet errors = [];\n\ntry {\n  // Retrieve the results\n  const rawResults = $('Collect results').first()?.json?.results ?? [];\n\n  rawResults.forEach(node => {\n    if (/^group_[a-zA-Z0-9]+$/.test(node.id) && typeof node.result === 'string') {\n      // Decode Base64 if it's a group\n      try {\n        node.result = JSON.parse(Buffer.from(node.result, 'base64').toString('utf-8'));\n\n        console.log(node.result);\n\n        // If the result is a group, introspect and get the results array\n        if (Array.isArray(node.result?.results)) {\n          // Start a new array instead of appending\n          results.push(...node.result.results);\n        }\n      } catch (decodeError) {\n        console.error(`Failed to decode Base64 for group ${node.id}:`, decodeError);\n      }\n    } else {\n      // For non-group nodes, add them directly to the results array\n      results.push(node);\n    }\n  });\n} catch (e) {\n  console.error(\"Error processing results:\", e);\n}\n\ntry {\n  // Retrieve any errors\n  errors = $('Collect errors').first()?.json?.errors ?? [];\n} catch (e) {\n  console.error(\"Error processing errors:\", e);\n}\n\nreturn {\n  json: {\n    started_at,\n    finished_at,\n    results,\n    errors\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1700,
+        320
+      ],
+      "id": "4ff84764-6d62-4a2d-9884-20228d75b436",
+      "name": "Consolidate output"
     }
   ],
   "connections": {
@@ -883,7 +883,7 @@
       "main": [
         [
           {
-            "node": "Code",
+            "node": "Consolidate output",
             "type": "main",
             "index": 0
           }
@@ -1006,17 +1006,6 @@
         [
           {
             "node": "Augment graph nodes",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get results": {
-      "main": [
-        [
-          {
-            "node": "Code",
             "type": "main",
             "index": 0
           }
@@ -1195,7 +1184,7 @@
       "main": [
         [
           {
-            "node": "Get results",
+            "node": "Collect results",
             "type": "main",
             "index": 0
           }
@@ -1231,17 +1220,6 @@
         ]
       ]
     },
-    "Code": {
-      "main": [
-        [
-          {
-            "node": "Respond to Webhook",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Add timestamp started_at": {
       "main": [
         [
@@ -1252,9 +1230,109 @@
           }
         ]
       ]
+    },
+    "Collect results": {
+      "main": [
+        [
+          {
+            "node": "Consolidate output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidate output": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "pinData": {},
+  "pinData": {
+    "Entrypoint": [
+      {
+        "headers": {
+          "host": "n8n.webhook.persev.info",
+          "user-agent": "python-requests/2.32.3",
+          "content-length": "682",
+          "accept": "*/*",
+          "accept-encoding": "gzip, deflate, br",
+          "content-type": "application/json",
+          "x-forwarded-for": "187.17.152.98",
+          "x-forwarded-host": "n8n.webhook.persev.info",
+          "x-forwarded-port": "443",
+          "x-forwarded-proto": "https",
+          "x-forwarded-server": "a1985e00fe4c",
+          "x-real-ip": "187.17.152.98"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "nodes": [
+            {
+              "id": 1,
+              "method": "GET",
+              "url": "https://n8n.webhook.persev.info/webhook/get-subworkflow",
+              "depends_on": []
+            },
+            {
+              "id": 2,
+              "method": "POST",
+              "url": "https://n8n.webhook.persev.info/webhook/post-subworkflow",
+              "data": {
+                "a": 1,
+                "b": 2,
+                "c": 3
+              },
+              "depends_on": [
+                1
+              ]
+            },
+            {
+              "id": 3,
+              "method": "GET",
+              "url": "https://n8n.webhook.persev.info/webhook/get-subworkflow",
+              "depends_on": []
+            },
+            {
+              "id": 4,
+              "method": "POST",
+              "url": "https://n8n.webhook.persev.info/webhook/post-subworkflow",
+              "data": {
+                "a": 1,
+                "b": 2,
+                "c": 3
+              },
+              "depends_on": [
+                3
+              ]
+            },
+            {
+              "id": 5,
+              "method": "POST",
+              "url": "https://n8n.webhook.persev.info/webhook/post-subworkflow",
+              "data": {
+                "a": 1,
+                "b": 2,
+                "c": 3
+              },
+              "depends_on": [
+                3
+              ]
+            }
+          ]
+        },
+        "webhookUrl": "https://n8n.webhook.persev.info/webhook/nodes",
+        "executionMode": "production"
+      }
+    ]
+  },
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "2e4f8121945025cdf9238c79aefe23511c144e8abb0729066dfb54ab1f405578"
