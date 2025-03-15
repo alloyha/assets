@@ -1,13 +1,15 @@
 #!/bin/bash
 
 # Define endpoints
-base_test_url="https://n8n.persev.info/webhook-test"
-base_prod_url="https://n8n.webhook.persev.info/webhook"
 
+# Change Here
+base_test_url="https://n8n.example.com/webhook-test"
+base_prod_url="https://n8n.webhook.example.com/webhook"
+
+# URLs for testing
 parallel_manager_url="$base_test_url/nodes"
 get_url="$base_prod_url/get-subworkflow"
 post_url="$base_prod_url/post-subworkflow"
-
 
 # Define headers
 headers="Content-Type: application/json"
